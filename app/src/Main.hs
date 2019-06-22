@@ -5,11 +5,14 @@ module Main where
 
 import System.Environment (getArgs)
 import System.Random (RandomGen, randomR, newStdGen)
-import Data.List (nub)
+import Data.List (intersperse, nub)
 import Data.Char (intToDigit, digitToInt)
 
 -- Only board size and mines amount are expected as command row arguments
 expectedArgsAmount = 2
+
+-- For the reason we have 26 letters only in the english alphabet
+maxBoardSize = 26
 
 data Board = Board {
   grid  :: [[Char]],
@@ -28,15 +31,13 @@ main = do
 
   if (length args) /= expectedArgsAmount then
     error "Unexpected arguments amount"
-  else if (read (args !! 0) :: Int) <= 0 then
-    error "Argument number 1 must be greater than 0"
   else
     return()
 
   let input1 = read (args !! 0) :: Int
   let input2 = read (args !! 1) :: Int
 
-  let boardSize = input1
+  let boardSize   = if input1 `elem` [1..maxBoardSize] then input1 else maxBoardSize
   let minesAmount = if input2 `elem` [1..boardSize^2 `div` 2] then input2 else boardSize^2 `div` 2
 
   let board = makeBoard g boardSize minesAmount
@@ -60,7 +61,8 @@ makeMines g n s
 
 play :: Board -> IO ()
 play board = do
-  printBoard board
+  g (letters (length (grid board))) (grid board)
+  putStrLn (colsIndexes (length (grid board)))
   putStrLn "Comando:"
   input <- getLine
   let (row, col) = (input !! 0, digitToInt (input !! 1) - 1)
@@ -68,6 +70,25 @@ play board = do
     putStrLn "Game over! Você perdeu."
   else
     play (updateBoard board (intToDigit (nearbyMines (row, col + 1) (mines board))) (row, col))
+
+letters :: Int -> String
+letters n
+  | n == 0 = "A"
+  | otherwise = letters (n - 1) ++ [toEnum (n + 65)]
+
+colsIndexes :: Int -> String
+colsIndexes n
+  | n == 0 = ""
+  | n `elem` [1..9] = colsIndexes (n - 1) ++ "   " ++ show n
+  | otherwise = colsIndexes (n - 1) ++ "  " ++ show n
+
+g :: String -> [[Char]] -> IO ()
+g s yss = mapM_ (uncurry f) (zip s yss)
+
+f :: Char -> [Char] -> IO ()
+f c ys = putStrLn (c : ' ' : unwords (map show (ys)))
+
+-- printBoard board = putStr $ unlines $ map (unwords . map show) $ grid board
 
 updateBoard :: Board -> Char -> (Char, Int) -> Board
 updateBoard board x (r, c) = Board {
@@ -87,5 +108,3 @@ nearbyMines (r, c) (x:xs)
     1 + nearbyMines (r, c) xs
   | otherwise = nearbyMines (r, c) xs
 
-printBoard :: Board -> IO ()
-printBoard board = putStr $ unlines $ map (unwords . map show) $ grid board
