@@ -6,9 +6,9 @@ module Main where
 import System.Environment (getArgs)
 import System.Random (RandomGen, randomR, newStdGen)
 import Data.List (nub)
-import Data.Char (intToDigit)
+import Data.Char (intToDigit, digitToInt)
 
--- Only board size and mines amount are expected as command line arguments
+-- Only board size and mines amount are expected as command row arguments
 expectedArgsAmount = 2
 
 data Board = Board {
@@ -17,8 +17,8 @@ data Board = Board {
 } deriving (Eq, Show, Ord)
 
 data Mine = Mine {
-  line :: Char,
-  col  :: Int
+  row :: Char,
+  col :: Int
 } deriving (Eq, Show, Ord)
 
 main :: IO ()
@@ -50,48 +50,42 @@ makeBoard g n m = Board {
   mines = nub $ makeMines g m n
 }
 
-play :: Board -> IO ()
-play board = do
-  printBoard board
-  putStrLn "Enter line:"
-  input1 <- getLine
-  putStrLn "Enter column:"
-  input2 <- getLine
-  let line = (read input1 :: Char)
-  let col  = (read input2 :: Int ) - 1
-  if isGameOver (line) (col + 1) (mines board) then
-    putStrLn "Game over! Você perdeu."
-  else
-    play Board {
-      grid  = updateMatrix (grid board) (intToDigit (nearbyMines (line) (col + 1) (mines board))) (fromEnum line - 65, col),
-      mines = mines board
-    }
-
-isGameOver :: Char -> Int -> [Mine] -> Bool
-isGameOver l c [] = False
-isGameOver l c (x:xs) = if (line x == l && col x == c) then True else isGameOver l c xs
-
-nearbyMines :: Char -> Int -> [Mine] -> Int
-nearbyMines _ _ [] = 0
-nearbyMines l c (x:xs)
-  | (line x == l && (col x == c + 1 || col x == c - 1)) ||
-    (col  x == c && (fromEnum (line x) == (fromEnum l) + 1 || fromEnum (line x) == (fromEnum l) - 1)) =
-    1 + nearbyMines l c xs
-  | otherwise = nearbyMines l c xs
-
-updateMatrix :: [[a]] -> a -> (Int, Int) -> [[a]]
-updateMatrix m x (r,c) =
-  take r m ++
-  [take c (m !! r) ++ [x] ++ drop (c + 1) (m !! r)] ++
-  drop (r + 1) m
-
-printBoard :: Board -> IO ()
-printBoard board = putStr $ unlines $ map (unwords . map show) $ grid board
-
 makeMines :: RandomGen g => g -> Int -> Int -> [Mine]
 makeMines g n s
   | n == 0 = []
   | otherwise = do
       let (i1, s2) = randomR (65, 65 + s - 1 :: Int) g
       let (i2,  _) = randomR (1, s :: Int) s2
-      [Mine {line = toEnum i1, col = i2}] ++ makeMines s2 (n - 1) s
+      [Mine {row = toEnum i1, col = i2}] ++ makeMines s2 (n - 1) s
+
+play :: Board -> IO ()
+play board = do
+  printBoard board
+  putStrLn "Comando:"
+  input <- getLine
+  let (row, col) = (input !! 0, digitToInt (input !! 1) - 1)
+  if isGameOver (row, col + 1) (mines board) then
+    putStrLn "Game over! Você perdeu."
+  else
+    play (updateBoard board (intToDigit (nearbyMines (row, col + 1) (mines board))) (row, col))
+
+updateBoard :: Board -> Char -> (Char, Int) -> Board
+updateBoard board x (r, c) = Board {
+  grid  = take ((fromEnum r) - 65) (grid board) ++ [take c ((grid board) !! ((fromEnum r) - 65)) ++ [x] ++ drop (c + 1) ((grid board) !! ((fromEnum r) - 65))] ++ drop (((fromEnum r) - 65) + 1) (grid board),
+  mines = mines board
+}
+
+isGameOver :: (Char, Int) -> [Mine] -> Bool
+isGameOver (r, c) [] = False
+isGameOver (r, c) (x:xs) = if (row x == r && col x == c) then True else isGameOver (r, c) xs
+
+nearbyMines :: (Char, Int) -> [Mine] -> Int
+nearbyMines (_,_) [] = 0
+nearbyMines (r, c) (x:xs)
+  | (row x == r && (col x == c + 1 || col x == c - 1)) ||
+    (col x == c && (fromEnum (row x) == (fromEnum r) + 1 || fromEnum (row x) == (fromEnum r) - 1)) =
+    1 + nearbyMines (r, c) xs
+  | otherwise = nearbyMines (r, c) xs
+
+printBoard :: Board -> IO ()
+printBoard board = putStr $ unlines $ map (unwords . map show) $ grid board
