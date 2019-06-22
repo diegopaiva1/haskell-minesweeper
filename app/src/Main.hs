@@ -17,7 +17,7 @@ data Board = Board {
 } deriving (Eq, Show, Ord)
 
 data Mine = Mine {
-  line :: Int,
+  line :: Char,
   col  :: Int
 } deriving (Eq, Show, Ord)
 
@@ -57,21 +57,26 @@ play board = do
   input1 <- getLine
   putStrLn "Enter column:"
   input2 <- getLine
-  let line = (read input1 :: Int) - 1
-  let col  = (read input2 :: Int) - 1
-  if isGameOver (line + 1) (col + 1) (mines board) then
+  let line = (read input1 :: Char)
+  let col  = (read input2 :: Int ) - 1
+  if isGameOver (line) (col + 1) (mines board) then
     putStrLn "Game over! Você perdeu."
   else
     play Board {
-      grid  = updateMatrix (grid board) (intToDigit (nearbyMines (line + 1) (col + 1) (mines board))) (line, col),
+      grid  = updateMatrix (grid board) (intToDigit (nearbyMines (line) (col + 1) (mines board))) (fromEnum line - 65, col),
       mines = mines board
     }
 
-nearbyMines :: Int -> Int -> [Mine] -> Int
+isGameOver :: Char -> Int -> [Mine] -> Bool
+isGameOver l c [] = False
+isGameOver l c (x:xs) = if (line x == l && col x == c) then True else isGameOver l c xs
+
+nearbyMines :: Char -> Int -> [Mine] -> Int
 nearbyMines _ _ [] = 0
 nearbyMines l c (x:xs)
-  | ((line x == l) && (col  x == c + 1 || col  x == c - 1)) ||
-    ((col  x == c) && (line x == l + 1 || line x == l - 1)) = 1 + nearbyMines l c xs
+  | (line x == l && (col x == c + 1 || col x == c - 1)) ||
+    (col  x == c && (fromEnum (line x) == (fromEnum l) + 1 || fromEnum (line x) == (fromEnum l) - 1)) =
+    1 + nearbyMines l c xs
   | otherwise = nearbyMines l c xs
 
 updateMatrix :: [[a]] -> a -> (Int, Int) -> [[a]]
@@ -83,17 +88,10 @@ updateMatrix m x (r,c) =
 printBoard :: Board -> IO ()
 printBoard board = putStr $ unlines $ map (unwords . map show) $ grid board
 
-isGameOver :: Int -> Int -> [Mine] -> Bool
-isGameOver l c [] = False
-isGameOver l c (x:xs) = if (line x == l && col x == c) then True else isGameOver l c xs
-
--- makeBoard :: Int -> [[Char]]
--- makeBoard n = replicate n $ replicate n '*'
-
 makeMines :: RandomGen g => g -> Int -> Int -> [Mine]
 makeMines g n s
   | n == 0 = []
   | otherwise = do
-      let (i1, s2) = randomR (1, s :: Int) g
+      let (i1, s2) = randomR (65, 65 + s - 1 :: Int) g
       let (i2,  _) = randomR (1, s :: Int) s2
-      [Mine {col = i1, line = i2}] ++ makeMines s2 (n - 1) s
+      [Mine {line = toEnum i1, col = i2}] ++ makeMines s2 (n - 1) s
