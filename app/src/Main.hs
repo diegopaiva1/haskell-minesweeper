@@ -3,10 +3,10 @@
 
 module Main where
 
-import System.Environment (getArgs)
-import System.Random (RandomGen, randomR, newStdGen)
 import Data.List (intersperse, nub)
 import Data.Char (intToDigit, digitToInt)
+import System.Random (RandomGen, randomR, newStdGen)
+import System.Environment (getArgs)
 
 -- Only board size and mines amount are expected as command row arguments
 expectedArgsAmount = 2
@@ -14,8 +14,11 @@ expectedArgsAmount = 2
 -- For the reason we have 26 letters only in the english alphabet
 maxBoardSize = 26
 
-data Board = Board {
-  grid  :: [[Char]],
+-- For dealing with characters in range A-Z
+asciiStart = 65
+
+data Minesweeper = Minesweeper {
+  board :: [[Char]],
   mines :: [Mine]
 } deriving (Eq, Show, Ord)
 
@@ -40,60 +43,57 @@ main = do
   let boardSize   = if input1 `elem` [1..maxBoardSize] then input1 else maxBoardSize
   let minesAmount = if input2 `elem` [1..boardSize^2 `div` 2] then input2 else boardSize^2 `div` 2
 
-  let board = makeBoard g boardSize minesAmount
+  let minesweeper = makeMinesweeper g boardSize minesAmount
+  play minesweeper
 
-  print(mines board)
-  play board
-
-makeBoard :: RandomGen g => g -> Int -> Int -> Board
-makeBoard g n m = Board {
-  grid  = replicate n $ replicate n '*',
-  mines = nub $ makeMines g m n
+makeMinesweeper :: RandomGen g => g -> Int -> Int -> Minesweeper
+makeMinesweeper g boardSize minesAmount = Minesweeper {
+  board = replicate boardSize $ replicate boardSize '*',
+  mines = nub $ makeMines g boardSize minesAmount
 }
 
 makeMines :: RandomGen g => g -> Int -> Int -> [Mine]
-makeMines g n s
-  | n == 0 = []
+makeMines g boardSize minesAmount
+  | minesAmount == 0 = []
   | otherwise = do
-      let (i1, s2) = randomR (65, 65 + s - 1 :: Int) g
-      let (i2,  _) = randomR (1, s :: Int) s2
-      [Mine {row = toEnum i1, col = i2}] ++ makeMines s2 (n - 1) s
+      let (i1, s1) = randomR (asciiStart, asciiStart + boardSize - 1 :: Int) g
+      let (i2,  _) = randomR (1, boardSize :: Int) s1
+      [Mine {row = toEnum i1, col = i2}] ++ makeMines s1 boardSize (minesAmount - 1)
 
-play :: Board -> IO ()
-play board = do
-  g (letters (length (grid board))) (grid board)
-  putStrLn (colsIndexes (length (grid board)))
-  putStrLn "Comando:"
+play :: Minesweeper -> IO ()
+play minesweeper = do
+  printBoard (letters (length (board minesweeper))) minesweeper
+  putStrLn "\nComando:"
   input <- getLine
   let (row, col) = (input !! 0, digitToInt (input !! 1) - 1)
-  if isGameOver (row, col + 1) (mines board) then
+  if isGameOver (row, col + 1) (mines minesweeper) then
     putStrLn "Game over! Você perdeu."
   else
-    play (updateBoard board (intToDigit (nearbyMines (row, col + 1) (mines board))) (row, col))
+    play (updateBoard minesweeper (intToDigit (nearbyMines (row, col + 1) (mines minesweeper))) (row, col))
+
+printBoard :: String -> Minesweeper -> IO ()
+printBoard rowsIds minesweeper = do
+  mapM_ (uncurry printRow) (zip rowsIds (board minesweeper))
+  putStrLn (digits (length (board minesweeper)))
+
+printRow :: Char -> [Char] -> IO ()
+printRow c xs = putStrLn (c : ' ' : unwords (map show xs))
 
 letters :: Int -> String
 letters n
-  | n == 0 = "A"
-  | otherwise = letters (n - 1) ++ [toEnum (n + 65)]
+  | n == 1 = "A"
+  | otherwise = letters (n - 1) ++ [toEnum (asciiStart + n - 1)]
 
-colsIndexes :: Int -> String
-colsIndexes n
+digits :: Int -> String
+digits n
   | n == 0 = ""
-  | n `elem` [1..9] = colsIndexes (n - 1) ++ "   " ++ show n
-  | otherwise = colsIndexes (n - 1) ++ "  " ++ show n
+  | n `elem` [1..9] = digits (n - 1) ++ "   " ++ show n
+  | otherwise = digits (n - 1) ++ "  " ++ show n
 
-g :: String -> [[Char]] -> IO ()
-g s yss = mapM_ (uncurry f) (zip s yss)
-
-f :: Char -> [Char] -> IO ()
-f c ys = putStrLn (c : ' ' : unwords (map show (ys)))
-
--- printBoard board = putStr $ unlines $ map (unwords . map show) $ grid board
-
-updateBoard :: Board -> Char -> (Char, Int) -> Board
-updateBoard board x (r, c) = Board {
-  grid  = take ((fromEnum r) - 65) (grid board) ++ [take c ((grid board) !! ((fromEnum r) - 65)) ++ [x] ++ drop (c + 1) ((grid board) !! ((fromEnum r) - 65))] ++ drop (((fromEnum r) - 65) + 1) (grid board),
-  mines = mines board
+updateBoard :: Minesweeper -> Char -> (Char, Int) -> Minesweeper
+updateBoard minesweeper x (r, c) = Minesweeper {
+  board = take ((fromEnum r) - 65) (board minesweeper) ++ [take c ((board minesweeper) !! ((fromEnum r) - 65)) ++ [x] ++ drop (c + 1) ((board minesweeper) !! ((fromEnum r) - 65))] ++ drop (((fromEnum r) - 65) + 1) (board minesweeper),
+  mines = mines minesweeper
 }
 
 isGameOver :: (Char, Int) -> [Mine] -> Bool
@@ -107,4 +107,3 @@ nearbyMines (r, c) (x:xs)
     (col x == c && (fromEnum (row x) == (fromEnum r) + 1 || fromEnum (row x) == (fromEnum r) - 1)) =
     1 + nearbyMines (r, c) xs
   | otherwise = nearbyMines (r, c) xs
-
