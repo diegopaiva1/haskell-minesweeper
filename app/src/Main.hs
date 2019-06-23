@@ -44,7 +44,7 @@ main = do
   let minesAmount = if input2 `elem` [1..boardSize^2 `div` 2] then input2 else boardSize^2 `div` 2
 
   let minesweeper = makeMinesweeper g boardSize minesAmount
-  play minesweeper
+  play 1 minesweeper
 
 makeMinesweeper :: RandomGen g => g -> Int -> Int -> Minesweeper
 makeMinesweeper g boardSize minesAmount = Minesweeper {
@@ -60,8 +60,9 @@ makeMines g boardSize minesAmount
       let (i2,  _) = randomR (1, boardSize :: Int) s1
       [Mine {row = toEnum i1, col = i2}] ++ makeMines s1 boardSize (minesAmount - 1)
 
-play :: Minesweeper -> IO ()
-play minesweeper = do
+play :: Int -> Minesweeper -> IO ()
+play turn minesweeper = do
+  putStrLn ("\nTurno: " ++ show turn)
   printBoard (letters (length (board minesweeper))) minesweeper
   putStrLn "\nComando:"
   input <- getLine
@@ -69,7 +70,7 @@ play minesweeper = do
   if isGameOver (row, col + 1) (mines minesweeper) then
     putStrLn "Game over! Você perdeu."
   else
-    play (updateBoard minesweeper (intToDigit (nearbyMines (row, col + 1) (mines minesweeper))) (row, col))
+    play (turn + 1) (updateBoard minesweeper (intToDigit (nearbyMines (row, col + 1) (mines minesweeper))) (row, col))
 
 printBoard :: String -> Minesweeper -> IO ()
 printBoard rowsIds minesweeper = do
@@ -77,7 +78,7 @@ printBoard rowsIds minesweeper = do
   putStrLn (digits (length (board minesweeper)))
 
 printRow :: Char -> [Char] -> IO ()
-printRow c xs = putStrLn (c : ' ' : unwords (map show xs))
+printRow c xs = putStrLn ("\t\t" ++ c : ' ' : unwords (map show xs))
 
 letters :: Int -> String
 letters n
@@ -86,7 +87,7 @@ letters n
 
 digits :: Int -> String
 digits n
-  | n == 0 = ""
+  | n == 0 = "\t\t"
   | n `elem` [1..9] = digits (n - 1) ++ "   " ++ show n
   | otherwise = digits (n - 1) ++ "  " ++ show n
 
