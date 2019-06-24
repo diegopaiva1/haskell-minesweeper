@@ -1,7 +1,7 @@
 {- @Nome      Diego Paiva e Silva
    @Matricula 201565516AC
 
-   Implementation of the Minesweeper game. Expected command-line arguments:
+   A Haskell implementation of the Minesweeper game. Expected command-line arguments:
    (1) Board size 'n'
        Minimum board size is 1 while the maximum is 26 (for the reason we have 26 letters only in the english alphabet).
        Any value out of the range (1, 26) will start a game with the maximum board size.
@@ -48,15 +48,13 @@ main = do
   else
     return()
 
-  let input1 = read (args !! 0) :: Int
-  let input2 = read (args !! 1) :: Int
+  let arg1 = read (args !! 0) :: Int
+  let arg2 = read (args !! 1) :: Int
 
-  let boardSize   = if input1 `elem` [1..maxBoardSize] then input1 else maxBoardSize
-  let minesAmount = if input2 `elem` [1..boardSize^2 `div` 2] then input2 else boardSize^2 `div` 2
+  let boardSize   = if arg1 `elem` [1..maxBoardSize] then arg1 else maxBoardSize
+  let minesAmount = if arg2 `elem` [1..boardSize^2 `div` 2] then arg2 else boardSize^2 `div` 2
 
-  let minesweeper = makeMinesweeper g boardSize minesAmount
-  print(length (mines minesweeper))
-  play 1 minesweeper
+  play 1 (makeMinesweeper g boardSize minesAmount)
 
 makeMinesweeper :: RandomGen g => g -> Int -> Int -> Minesweeper
 makeMinesweeper g boardSize minesAmount = Minesweeper {
@@ -70,8 +68,9 @@ makeMines g boardSize minesAmount xs
   | otherwise = do
       let (i1, s1) = randomR (asciiStart, asciiStart + boardSize - 1 :: Int) g
       let (i2,  _) = randomR (1, boardSize :: Int) s1
-      if not (hasMine (toEnum i1, i2) xs) then
-        Mine {row = toEnum i1, col = i2}:makeMines s1 boardSize (minesAmount - 1) xs
+      let mine = Mine {row = toEnum i1, col = i2}
+      if not (hasMine mine xs) then
+        mine:makeMines s1 boardSize (minesAmount - 1) (mine:xs)
       else
         makeMines s1 boardSize minesAmount xs
 
@@ -91,7 +90,7 @@ play turn minesweeper = do
     if input =~ openMinePattern then do
       let (row, col) = (toUpper (input !! 0), read (if length input == 3 then [input !! 1] ++ [input !! 2] else [input !! 1]) :: Int)
       if not (mineSet (row, col) (board minesweeper)) then
-        if hasMine (row, col) (mines minesweeper) then
+        if hasMine (Mine {row = fst (row, col), col = snd (row, col)}) (mines minesweeper) then
           putStrLn "Game over! Você perdeu."
         else
           play (turn + 1) (updateBoard minesweeper (intToDigit (nearbyMines (row, col) (mines minesweeper))) (row, col - 1))
@@ -136,9 +135,9 @@ updateBoard minesweeper x (r, c) = Minesweeper {
   mines = mines minesweeper
 }
 
-hasMine :: (Char, Int) -> [Mine] -> Bool
-hasMine (r, c) []     = False
-hasMine (r, c) (x:xs) = if (row x == r && col x == c) then True else hasMine (r, c) xs
+hasMine :: Mine -> [Mine] -> Bool
+hasMine mine []     = False
+hasMine mine (x:xs) = if (row x == row mine && col x == col mine) then True else hasMine mine xs
 
 nearbyMines :: (Char, Int) -> [Mine] -> Int
 nearbyMines (_,_) [] = 0
