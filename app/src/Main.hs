@@ -1,21 +1,32 @@
--- @Nome      Diego Paiva e Silva
--- @Matricula 201565516AC
+{- @Nome      Diego Paiva e Silva
+   @Matricula 201565516AC
+
+   Implementation of the Minesweeper game. Expected command-line arguments:
+   (1) Board size 'n'
+       Minimum board size is 1 while the maximum is 26 (for the reason we have 26 letters only in the english alphabet).
+       Any value out of the range (1, 26) will start a game with the maximum board size.
+   (2) Number of mines
+       Minimum number of mines is 1 while the maximum is (n^2)/2. Any value out of the range (1, (n^2)/2) will start
+       a game with the maximum number of mines.
+
+   Example of a game with board size n = 4:   A  *   *   *   *
+                                              B  *   *   *   *
+                                              C  *   *   *   *
+                                              D  *   *   *   *
+                                                 1   2   3   4
+-}
 
 module Main where
 
 import Data.List (intersperse, nub)
-import Data.Char (intToDigit, digitToInt)
+import Data.Char (intToDigit, digitToInt, toLower, toUpper)
 import System.Random (RandomGen, randomR, newStdGen)
+import Text.Regex.PCRE
 import System.Environment (getArgs)
 
--- Only board size and mines amount are expected as command row arguments
 expectedArgsAmount = 2
-
--- For the reason we have 26 letters only in the english alphabet
 maxBoardSize = 26
-
--- For dealing with characters in range A-Z
-asciiStart = 65
+asciiStart = 65 -- For dealing with characters in range A-Z
 
 data Minesweeper = Minesweeper {
   board :: [[Char]],
@@ -66,11 +77,29 @@ play turn minesweeper = do
   printBoard (letters (length (board minesweeper))) minesweeper
   putStrLn "\nComando:"
   input <- getLine
-  let (row, col) = (input !! 0, digitToInt (input !! 1) - 1)
-  if isGameOver (row, col + 1) (mines minesweeper) then
-    putStrLn "Game over! Você perdeu."
-  else
-    play (turn + 1) (updateBoard minesweeper (intToDigit (nearbyMines (row, col + 1) (mines minesweeper))) (row, col))
+  let lastRow = last (letters (length (board minesweeper)))
+  let action = "[+|-]?"
+  let row = "[(a-" ++ [toLower lastRow] ++ ")|(A-" ++ [lastRow] ++ ")]"
+  let col = if length (board minesweeper) <= 9 then "([1-" ++ [last (show (length (board minesweeper)))] ++ "])" else if length (board minesweeper) `elem` [10..19] then "([1-9]|1[0-" ++ [last ([last (show (length (board minesweeper)))])] ++ "])" else "([1-9]|1[0-9]|2[0-" ++ [last (show (length (board minesweeper)))] ++ "])"
+  let pattern = "^(" ++ action ++ row ++ col ++ ")$"
+  if input =~ pattern then do
+    let openMinePattern  = "^(" ++ row ++ col ++ ")$"
+    if input =~ openMinePattern then do
+      let (row, col) = (toUpper (input !! 0), read (if length input == 3 then [input !! 1] ++ [input !! 2] else [input !! 1]) :: Int)
+      if not (mineSet (row, col) (board minesweeper)) then
+        if hasMine (row, col) (mines minesweeper) then
+          putStrLn "Game over! Você perdeu."
+        else
+          play (turn + 1) (updateBoard minesweeper (intToDigit (nearbyMines (row, col) (mines minesweeper))) (row, col - 1))
+      else do
+        putStrLn "Posição está marcada como mina."
+        play turn minesweeper
+    else do
+      let (row, col) = (toUpper (input !! 1), read (if length input == 4 then [input !! 2] ++ [input !! 3] else [input !! 2]) :: Int)
+      play (turn + 1) (updateBoard minesweeper (if input !! 0 == '+' then 'B' else if mineSet (row, col) (board minesweeper) then '*' else getChar' (row, col) (board minesweeper)) (row, col - 1))
+  else do
+    putStrLn "Comando inválido!"
+    play turn minesweeper
 
 printBoard :: String -> Minesweeper -> IO ()
 printBoard rowsIds minesweeper = do
@@ -82,28 +111,34 @@ printRow c xs = putStrLn ("\t\t" ++ c : ' ' : unwords (map show xs))
 
 letters :: Int -> String
 letters n
-  | n == 1 = "A"
+  | n == 1    = "A"
   | otherwise = letters (n - 1) ++ [toEnum (asciiStart + n - 1)]
 
 digits :: Int -> String
 digits n
-  | n == 0 = "\t\t"
+  | n == 0          = "\t\t"
   | n `elem` [1..9] = digits (n - 1) ++ "   " ++ show n
-  | otherwise = digits (n - 1) ++ "  " ++ show n
+  | otherwise       = digits (n - 1) ++ "  "  ++ show n
+
+mineSet :: (Char, Int) -> [[Char]] -> Bool
+mineSet (r,c) xss = if ((xss !! ((fromEnum r) - asciiStart)) !! (c - 1)) == 'B' then True else False
+
+getChar' :: (Char, Int) -> [[Char]] -> Char
+getChar' (r, c) xss = xss !! ((fromEnum r) - asciiStart) !! (c - 1)
 
 updateBoard :: Minesweeper -> Char -> (Char, Int) -> Minesweeper
 updateBoard minesweeper x (r, c) = Minesweeper {
-  board = take ((fromEnum r) - 65) (board minesweeper) ++ [take c ((board minesweeper) !! ((fromEnum r) - 65)) ++ [x] ++ drop (c + 1) ((board minesweeper) !! ((fromEnum r) - 65))] ++ drop (((fromEnum r) - 65) + 1) (board minesweeper),
+  board = take ((fromEnum r) - asciiStart) (board minesweeper) ++ [take c ((board minesweeper) !! ((fromEnum r) - asciiStart)) ++ [x] ++ drop (c + 1) ((board minesweeper) !! ((fromEnum r) - asciiStart))] ++ drop (((fromEnum r) - asciiStart) + 1) (board minesweeper),
   mines = mines minesweeper
 }
 
-isGameOver :: (Char, Int) -> [Mine] -> Bool
-isGameOver (r, c) [] = False
-isGameOver (r, c) (x:xs) = if (row x == r && col x == c) then True else isGameOver (r, c) xs
+hasMine :: (Char, Int) -> [Mine] -> Bool
+hasMine (r, c) []     = False
+hasMine (r, c) (x:xs) = if (row x == r && col x == c) then True else hasMine (r, c) xs
 
 nearbyMines :: (Char, Int) -> [Mine] -> Int
 nearbyMines (_,_) [] = 0
-nearbyMines (r, c) (x:xs)
+nearbyMines (r,c) (x:xs)
   | (row x == r && (col x == c + 1 || col x == c - 1)) ||
     (col x == c && (fromEnum (row x) == (fromEnum r) + 1 || fromEnum (row x) == (fromEnum r) - 1)) =
     1 + nearbyMines (r, c) xs
