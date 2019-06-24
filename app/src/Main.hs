@@ -55,21 +55,25 @@ main = do
   let minesAmount = if input2 `elem` [1..boardSize^2 `div` 2] then input2 else boardSize^2 `div` 2
 
   let minesweeper = makeMinesweeper g boardSize minesAmount
+  print(length (mines minesweeper))
   play 1 minesweeper
 
 makeMinesweeper :: RandomGen g => g -> Int -> Int -> Minesweeper
 makeMinesweeper g boardSize minesAmount = Minesweeper {
   board = replicate boardSize $ replicate boardSize '*',
-  mines = nub $ makeMines g boardSize minesAmount
+  mines = makeMines g boardSize minesAmount []
 }
 
-makeMines :: RandomGen g => g -> Int -> Int -> [Mine]
-makeMines g boardSize minesAmount
+makeMines :: RandomGen g => g -> Int -> Int -> [Mine] -> [Mine]
+makeMines g boardSize minesAmount xs
   | minesAmount == 0 = []
   | otherwise = do
       let (i1, s1) = randomR (asciiStart, asciiStart + boardSize - 1 :: Int) g
       let (i2,  _) = randomR (1, boardSize :: Int) s1
-      [Mine {row = toEnum i1, col = i2}] ++ makeMines s1 boardSize (minesAmount - 1)
+      if not (hasMine (toEnum i1, i2) xs) then
+        Mine {row = toEnum i1, col = i2}:makeMines s1 boardSize (minesAmount - 1) xs
+      else
+        makeMines s1 boardSize minesAmount xs
 
 play :: Int -> Minesweeper -> IO ()
 play turn minesweeper = do
