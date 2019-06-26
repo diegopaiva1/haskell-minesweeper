@@ -71,14 +71,14 @@ makeMines g boardSize minesAmount xs
 
 play :: Int -> Minesweeper -> IO ()
 play turn minesweeper = do
-  if length (filter' (/= '*') (board minesweeper)) == (length (board minesweeper))^2 then do
+  if length (filterBoard (/= '*') (board minesweeper)) == (length (board minesweeper))^2 then do
     putStrLn "Parabéns! Você venceu!"
     exitSuccess
   else
     return()
 
   putStrLn ("\nTurno: " ++ show turn)
-  printBoard (rowsLabels (length (board minesweeper))) minesweeper
+  printBoard (rowsLabels (length (board minesweeper))) (board minesweeper)
   putStrLn "\nComando:"
   input <- getLine
   let lastRowLabel = last (rowsLabels (length (board minesweeper)))
@@ -92,6 +92,8 @@ play turn minesweeper = do
       if not (open (row, col) (board minesweeper)) then
         if hasMine (row, col) (mines minesweeper) then do
           putStrLn "Game over! Você foi explodido!"
+          putStrLn "Tabuleiro completo:"
+          printBoard (rowsLabels (length (board minesweeper))) (fullOpenBoard minesweeper)
         else
           play (turn + 1) (updateBoard minesweeper (intToDigit (nearbyMines (row, col) (mines minesweeper))) (row, col - 1))
       else do
@@ -119,14 +121,14 @@ play turn minesweeper = do
     putStrLn "Comando inválido!"
     play turn minesweeper
 
-filter' :: (a -> Bool) -> [[a]] -> [a]
-filter' f [] = []
-filter' f (xs:xss) = filter f xs ++ filter' f xss
+filterBoard :: (a -> Bool) -> [[a]] -> [a]
+filterBoard f [] = []
+filterBoard f (xs:xss) = filter f xs ++ filterBoard f xss
 
-printBoard :: String -> Minesweeper -> IO ()
+printBoard :: String -> [[Char]] -> IO ()
 printBoard rowsLabels minesweeper = do
-  mapM_ (uncurry printRow) (zip rowsLabels (board minesweeper))
-  putStrLn (colsLabels (length (board minesweeper)))
+  mapM_ (uncurry printRow) (zip rowsLabels (minesweeper))
+  putStrLn (colsLabels (length (minesweeper)))
 
 printRow :: Char -> [Char] -> IO ()
 printRow c xs = putStrLn ("\t\t" ++ c : ' ' : unwords (map show xs))
@@ -153,8 +155,12 @@ getChar' :: (Char, Int) -> [[Char]] -> Char
 getChar' (r, c) xss = xss !! ((fromEnum r) - ascii) !! (c - 1)
 
 updateBoard :: Minesweeper -> Char -> (Char, Int) -> Minesweeper
-updateBoard minesweeper x (r, c) = Minesweeper {
-  board = take ((fromEnum r) - ascii) (board minesweeper) ++ [take c ((board minesweeper) !! ((fromEnum r) - ascii)) ++ [x] ++ drop (c + 1) ((board minesweeper) !! ((fromEnum r) - ascii))] ++ drop (((fromEnum r) - ascii) + 1) (board minesweeper),
+updateBoard minesweeper x (r, c) = do
+  let row = (fromEnum r) - ascii
+  Minesweeper {
+  board = take (row) (board minesweeper) ++
+          [take c ((board minesweeper) !! (row)) ++ [x] ++ drop (c + 1) ((board minesweeper) !! (row))] ++
+          drop ((row) + 1) (board minesweeper),
   mines = mines minesweeper
 }
 
@@ -169,3 +175,6 @@ nearbyMines (r,c) (x:xs)
     (col x == c && (fromEnum (row x) == (fromEnum r) + 1 || fromEnum (row x) == (fromEnum r) - 1)) =
     1 + nearbyMines (r, c) xs
   | otherwise = nearbyMines (r, c) xs
+
+fullOpenBoard :: Minesweeper -> [[Char]]
+fullOpenBoard minesweeper = [[if hasMine (toEnum (i + ascii), j + 1) (mines minesweeper) then 'B' else intToDigit (nearbyMines (toEnum (i + ascii), j + 1) (mines minesweeper)) | (j,c) <- zip [0..] r] | (i,r) <- zip [0..] (board minesweeper)]
