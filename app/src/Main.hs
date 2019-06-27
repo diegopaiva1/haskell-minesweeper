@@ -23,16 +23,17 @@ import Data.Char (intToDigit, digitToInt, toLower, toUpper)
 import System.Exit (exitFailure, exitSuccess)
 import System.Random (RandomGen, randomR, newStdGen)
 import Text.Regex.PCRE
+import Control.Concurrent (threadDelay)
 import System.Environment (getArgs)
 
 expectedArgsAmount = 2
 maxBoardSize = 26
-ascii = 65 -- For dealing with characters in range A-Z
+ascii = 65 -- Utility for dealing with characters in range A-Z
+delayMicrosseconds = 1000000
 
 data Minesweeper = Minesweeper {board :: [[Char]], mines :: [Mine]} deriving (Eq, Show, Ord)
 data Mine = Mine {row :: Char, col :: Int} deriving (Eq, Show, Ord)
 
-main :: IO ()
 main = do
   g    <- newStdGen
   args <- getArgs
@@ -71,33 +72,35 @@ makeMines g boardSize minesAmount xs
 
 play :: Int -> Minesweeper -> IO ()
 play turn minesweeper = do
-  if length (filterBoard (/= '*') (board minesweeper)) == (length (board minesweeper))^2 then do
+  if allCellsOpen minesweeper then do
     putStrLn "Parabéns! Você venceu!"
     exitSuccess
   else
     return()
 
-  putStrLn ("\nTurno: " ++ show turn)
+  putStrLn ("\nTurno: " ++ show turn ++ " // Minas totais: " ++ show (length (mines minesweeper)) ++ " \n")
   printBoard (rowsLabels (length (board minesweeper))) (board minesweeper)
   putStrLn "\nComando:"
   input <- getLine
   let lastRowLabel = last (rowsLabels (length (board minesweeper)))
-  let action = "[+|-]?"
-  let row = "[(a-" ++ [toLower lastRowLabel] ++ ")|(A-" ++ [lastRowLabel] ++ ")]"
-  let col = if length (board minesweeper) <= 9 then "([1-" ++ [last (show (length (board minesweeper)))] ++ "])" else if length (board minesweeper) `elem` [10..19] then "([1-9]|1[0-" ++ [last ([last (show (length (board minesweeper)))])] ++ "])" else "([1-9]|1[0-9]|2[0-" ++ [last (show (length (board minesweeper)))] ++ "])"
-  let pattern = "^(" ++ action ++ row ++ col ++ ")$"
+  let actionPattern = "[+|-]?" -- '+' is for setting a cell as mine and '-' is for unsetting a cell previous set as mine
+  let rowPattern = "[(a-" ++ [toLower lastRowLabel] ++ ")|(A-" ++ [lastRowLabel] ++ ")]"
+  let colPattern = if length (board minesweeper) <= 9 then "([1-" ++ [last (show (length (board minesweeper)))] ++ "])" else if length (board minesweeper) `elem` [10..19] then "([1-9]|1[0-" ++ [last ([last (show (length (board minesweeper)))])] ++ "])" else "([1-9]|1[0-9]|2[0-" ++ [last (show (length (board minesweeper)))] ++ "])"
+  let pattern = "^(" ++ actionPattern ++ rowPattern ++ colPattern ++ ")$"
   if input =~ pattern then do
     if head input /= '+' && head input /= '-' then do
       let (row, col) = (toUpper (input !! 0), read (if length input == 3 then [input !! 1] ++ [input !! 2] else [input !! 1]) :: Int)
       if not (open (row, col) (board minesweeper)) then
         if hasMine (row, col) (mines minesweeper) then do
-          putStrLn "Game over! Você foi explodido!"
-          putStrLn "Tabuleiro completo:"
+          putStrLn "\nGame over! Você foi explodido!"
+          threadDelay delayMicrosseconds
+          putStrLn "\nConfiguração do tabuleiro:\n"
           printBoard (rowsLabels (length (board minesweeper))) (fullOpenBoard minesweeper)
         else
           play (turn + 1) (updateBoard minesweeper (intToDigit (nearbyMines (row, col) (mines minesweeper))) (row, col - 1))
       else do
         putStrLn "Posição inválida - já foi aberta/marcada."
+        threadDelay delayMicrosseconds
         play turn minesweeper
     else do
       let (row, col) = (toUpper (input !! 1), read (if length input == 4 then [input !! 2] ++ [input !! 3] else [input !! 2]) :: Int)
@@ -105,21 +108,30 @@ play turn minesweeper = do
         if not ((open (row, col) (board minesweeper))) then
           if (minesSet (board minesweeper) == (length (mines minesweeper))) then do
             putStrLn "Você já marcou o número máximo de minas."
+            threadDelay delayMicrosseconds
             play turn minesweeper
           else
             play (turn + 1) (updateBoard minesweeper 'B' (row, col - 1))
         else do
           putStrLn "Posição inválida - já foi aberta/marcada."
+          threadDelay delayMicrosseconds
           play turn minesweeper
       else
         if getChar' (row, col) (board minesweeper) == 'B' then
           play (turn + 1) (updateBoard minesweeper '*' (row, col - 1))
         else do
-          putStrLn "Posição não foi marcada como mina - não pode ser desmarcada."
+          putStrLn "Posição não está marcada como mina - operação inválida."
+          threadDelay delayMicrosseconds
           play turn minesweeper
   else do
-    putStrLn "Comando inválido!"
+    putStrLn "\nComando inválido!"
+    threadDelay delayMicrosseconds
     play turn minesweeper
+
+allCellsOpen :: Minesweeper -> Bool
+allCellsOpen minesweeper
+  | length (filterBoard (/= '*') (board minesweeper)) == (length (board minesweeper))^2 = True
+  | otherwise = False
 
 filterBoard :: (a -> Bool) -> [[a]] -> [a]
 filterBoard f [] = []
