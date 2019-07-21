@@ -1,7 +1,4 @@
-{- @Nome      Diego Paiva e Silva
-   @Matricula 201565516AC
-
-   A Haskell implementation of the Minesweeper game. Expected command-line arguments:
+{- A Haskell implementation of the Minesweeper game. Expected command-line arguments:
    (1) Board size 'n'
        Minimum board size is 1 while the maximum is 26 (for the reason we have 26 letters only in the english alphabet).
        Any value out of the range (1, 26) will start a game with the maximum board size.
@@ -73,14 +70,14 @@ makeMines g boardSize minesAmount xs
 play :: Int -> Minesweeper -> IO ()
 play turn minesweeper = do
   if allCellsOpen minesweeper then do
-    putStrLn "Parabéns! Você venceu!"
+    putStrLn "You win!"
     exitSuccess
   else
     return()
 
-  putStrLn ("\nTurno: " ++ show turn ++ " // Minas totais: " ++ show (length (mines minesweeper)) ++ " \n")
+  putStrLn ("\nTurn: " ++ show turn ++ " // Mines: " ++ show (length (mines minesweeper)) ++ " \n")
   printBoard (rowsLabels (length (board minesweeper))) (board minesweeper)
-  putStrLn "\nComando:"
+  putStrLn "\nCommand:"
   input <- getLine
   let lastRowLabel = last (rowsLabels (length (board minesweeper)))
   let actionPattern = "[+|-]?" -- '+' is for setting a cell as mine and '-' is for unsetting a cell previous set as mine
@@ -92,14 +89,14 @@ play turn minesweeper = do
       let (row, col) = (toUpper (input !! 0), read (if length input == 3 then [input !! 1] ++ [input !! 2] else [input !! 1]) :: Int)
       if not (open (row, col) (board minesweeper)) then
         if hasMine (row, col) (mines minesweeper) then do
-          putStrLn "\nGame over! Você foi explodido!"
+          putStrLn "\nGame over! You have been exploded!"
           threadDelay delayMicrosseconds
-          putStrLn "\nConfiguração do tabuleiro:\n"
+          putStrLn "\nBoard setup:\n"
           printBoard (rowsLabels (length (board minesweeper))) (fullOpenBoard minesweeper)
         else
           play (turn + 1) (updateBoard minesweeper (intToDigit (nearbyMines (row, col) (mines minesweeper))) (row, col - 1))
       else do
-        putStrLn "Posição inválida - já foi aberta/marcada."
+        putStrLn "Invalid position - already open or marked."
         threadDelay delayMicrosseconds
         play turn minesweeper
     else do
@@ -107,24 +104,24 @@ play turn minesweeper = do
       if head input == '+' then
         if not ((open (row, col) (board minesweeper))) then
           if (minesSet (board minesweeper) == (length (mines minesweeper))) then do
-            putStrLn "Você já marcou o número máximo de minas."
+            putStrLn "You have already marked the maximum number of mines."
             threadDelay delayMicrosseconds
             play turn minesweeper
           else
             play (turn + 1) (updateBoard minesweeper 'B' (row, col - 1))
         else do
-          putStrLn "Posição inválida - já foi aberta/marcada."
+          putStrLn "Invalid position - already open or marked."
           threadDelay delayMicrosseconds
           play turn minesweeper
       else
         if getChar' (row, col) (board minesweeper) == 'B' then
           play (turn + 1) (updateBoard minesweeper '*' (row, col - 1))
         else do
-          putStrLn "Posição não está marcada como mina - operação inválida."
+          putStrLn "Position is not marked as mine - invalid operation."
           threadDelay delayMicrosseconds
           play turn minesweeper
   else do
-    putStrLn "\nComando inválido!"
+    putStrLn "\nInvalid command!"
     threadDelay delayMicrosseconds
     play turn minesweeper
 
